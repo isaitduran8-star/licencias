@@ -1,1 +1,2 @@
 # usuario | vencimiento (AAAA-MM-DD)
+Aplicaciones | 2026-11-02
