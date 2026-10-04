@@ -1,1 +1,2 @@
 # usuario | vencimiento (AAAA-MM-DD)
+Alex1090 | 2026-11-03
