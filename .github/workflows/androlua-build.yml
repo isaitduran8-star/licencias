@@ -23,27 +23,26 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
-      - name: Extraer proyecto y ajustar AndroidX
+      - name: Extraer y aplicar correcciones experimentales
         run: |
           mkdir -p androlua-project
           unzip -q AndroLua_es_fuente.zip -d androlua-project
           sed -i 's/^android.useAndroidX=false/android.useAndroidX=true/' androlua-project/gradle.properties
           python3 - <<'PY'
           from pathlib import Path
-          p = Path('androlua-project/app/src/main/assets/main.lua')
-          s = p.read_text()
-          old = 'task(adds, function(buf)\n    editor.addNames(buf)\nend)\n'
-          if old not in s:
-              raise SystemExit('No se encontró el bloque de autocompletado esperado')
-          s = s.replace(old, '-- Se omite el autocompletado global pesado para evitar bloqueos al iniciar.\n')
-          p.write_text(s)
-          p = Path('androlua-project/app/src/main/assets/project/main.lua')
-          s = p.read_text()
-          old = 'local pds=File(plugindir).list()\n--Arrays.sort(pds)'
-          new = 'local pds=File(plugindir).list() or String[0]\n--Arrays.sort(pds)'
-          if old not in s:
-              raise SystemExit('No se encontró la lista de proyectos esperada')
-          p.write_text(s.replace(old, new))
+          def replace(path, old, new):
+              p=Path('androlua-project')/path
+              text=p.read_text()
+              if old not in text:
+                  raise SystemExit('No se encontró el texto esperado en '+str(p))
+              p.write_text(text.replace(old,new,1))
+          replace('app/src/main/assets/main.lua', 'task(adds, function(buf)\n    editor.addNames(buf)\nend)\n', '-- Sin carga automática del índice grande de clases.\n')
+          replace('app/src/main/assets/project/main.lua', 'local pds=File(plugindir).list()\n--Arrays.sort(pds)', 'local pds=File(plugindir).list() or String[0]\n--Arrays.sort(pds)')
+          replace('app/src/main/assets/main.lua', 'Toast.makeText(activity, "Solo se permite compilar proyectos.", Toast.LENGTH_SHORT ).show()', 'AlertDialogBuilder(activity).setTitle("No se puede compilar").setMessage("Abre o crea un proyecto antes de compilar un APK.").setPositiveButton("Aceptar", nil).show()')
+          replace('app/src/main/resources/lua/bin.lua', 'Toast.makeText(activity, "工程配置文件错误." .. s, Toast.LENGTH_SHORT).show()', 'local mensaje = "Error en init.lua del proyecto:\\n" .. tostring(s)\n        AlertDialogBuilder(activity).setTitle("Error al compilar").setMessage(mensaje).setPositiveButton("Copiar error", {onClick=function() local clip=activity.getSystemService(activity.CLIPBOARD_SERVICE); clip.setPrimaryClip(ClipData.newPlainText("Error de compilación", mensaje)) end}).setNegativeButton("Cerrar", nil).show()')
+          replace('app/src/main/resources/lua/bin.lua', 'import "android.content.Intent"', 'import "android.content.Intent"\nimport "android.content.ClipData"')
+          replace('app/src/main/resources/lua/bin.lua', 'error_dlg.setPositiveButton("Aceptar", nil)', 'error_dlg.setPositiveButton("Copiar error", {onClick=function() local clip=activity.getSystemService(activity.CLIPBOARD_SERVICE); clip.setPrimaryClip(ClipData.newPlainText("Error de compilación", tostring(error_dlg.Message))) end})\n    error_dlg.setNegativeButton("Cerrar", nil)')
+          replace('app/src/main/java/com/androlua/LuaActivity.java', 'else\n            sendMsg(title + ": " + msg.getMessage());', 'else {\n            final String details = title + ": " + msg.toString();\n            sendMsg(details);\n            runOnUiThread(() -> {\n                if (isFinishing()) return;\n                new android.app.AlertDialog.Builder(this)\n                    .setTitle("Error de AndroLua+")\n                    .setMessage(details)\n                    .setPositiveButton("Copiar error", (dialog, which) -> {\n                        android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);\n                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Error de AndroLua+", details));\n                    })\n                    .setNegativeButton("Cerrar", null)\n                    .show();\n            });\n        }')
           PY
       - name: Compilar APK de prueba
         working-directory: androlua-project
@@ -51,7 +50,7 @@ jobs:
       - name: Guardar APK de prueba
         uses: actions/upload-artifact@v4
         with:
-          name: AndroLua-es-debug-experimental-fix1
+          name: AndroLua-es-debug-errores-copiables
           path: androlua-project/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
