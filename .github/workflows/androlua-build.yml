@@ -23,8 +23,11 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
-      - name: Extraer proyecto
-        run: mkdir -p androlua-project && unzip -q AndroLua_es_fuente.zip -d androlua-project
+      - name: Extraer proyecto y ajustar AndroidX
+        run: |
+          mkdir -p androlua-project
+          unzip -q AndroLua_es_fuente.zip -d androlua-project
+          sed -i 's/^android.useAndroidX=false/android.useAndroidX=true/' androlua-project/gradle.properties
       - name: Compilar APK de prueba
         working-directory: androlua-project
         run: gradle --no-daemon --stacktrace :app:assembleDebug
