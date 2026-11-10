@@ -28,13 +28,30 @@ jobs:
           mkdir -p androlua-project
           unzip -q AndroLua_es_fuente.zip -d androlua-project
           sed -i 's/^android.useAndroidX=false/android.useAndroidX=true/' androlua-project/gradle.properties
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('androlua-project/app/src/main/assets/main.lua')
+          s = p.read_text()
+          old = 'task(adds, function(buf)\n    editor.addNames(buf)\nend)\n'
+          if old not in s:
+              raise SystemExit('No se encontró el bloque de autocompletado esperado')
+          s = s.replace(old, '-- Se omite el autocompletado global pesado para evitar bloqueos al iniciar.\n')
+          p.write_text(s)
+          p = Path('androlua-project/app/src/main/assets/project/main.lua')
+          s = p.read_text()
+          old = 'local pds=File(plugindir).list()\n--Arrays.sort(pds)'
+          new = 'local pds=File(plugindir).list() or String[0]\n--Arrays.sort(pds)'
+          if old not in s:
+              raise SystemExit('No se encontró la lista de proyectos esperada')
+          p.write_text(s.replace(old, new))
+          PY
       - name: Compilar APK de prueba
         working-directory: androlua-project
         run: gradle --no-daemon --stacktrace :app:assembleDebug
       - name: Guardar APK de prueba
         uses: actions/upload-artifact@v4
         with:
-          name: AndroLua-es-debug-experimental
+          name: AndroLua-es-debug-experimental-fix1
           path: androlua-project/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
