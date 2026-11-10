@@ -1,0 +1,36 @@
+name: AndroLua compilacion experimental
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'AndroLua_es_fuente.zip'
+      - '.github/workflows/androlua-build.yml'
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Instalar Android SDK y NDK
+        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;25.2.9519653'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+      - name: Extraer proyecto
+        run: mkdir -p androlua-project && unzip -q AndroLua_es_fuente.zip -d androlua-project
+      - name: Compilar APK de prueba
+        working-directory: androlua-project
+        run: gradle --no-daemon --stacktrace :app:assembleDebug
+      - name: Guardar APK de prueba
+        uses: actions/upload-artifact@v4
+        with:
+          name: AndroLua-es-debug-experimental
+          path: androlua-project/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
